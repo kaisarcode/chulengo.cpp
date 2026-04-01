@@ -113,7 +113,7 @@ Infer flags:
 | Flag | Description | Default |
 | :--- | :--- | :--- |
 | `--ctx` | Context window | `2048` |
-| `--kv` | Load one KV snapshot if present and save it back after inference | `NULL` |
+| `--kv` | KV snapshot path | `NULL` |
 | `--predict` | Maximum generated tokens | `128` |
 | `--threads` | CPU worker threads | `auto` |
 | `--gpu` | GPU layers offloaded | `999` |
