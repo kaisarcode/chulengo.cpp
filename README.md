@@ -1,3 +1,5 @@
+![chulengo](./logo.png)
+
 # chulengo - Raw llama.cpp core binary
 
 `chulengo` is a small autonomous and portable base binary built directly on
