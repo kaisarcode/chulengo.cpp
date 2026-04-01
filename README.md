@@ -1,30 +1,55 @@
 # chulengo - Raw llama.cpp core binary
 
-`chulengo` is a minimal raw binary built directly on top of `llama.cpp`.
+`chulengo` is a small autonomous and portable base binary built directly on
+top of `llama.cpp`.
 
-It exposes only two operations:
+It was created for a simple reason: in many local workflows, what is needed is
+not a full product surface, but a dependable low-level binary that can be
+connected to other tools directly.
+
+`llama.cpp` already offers complete user-facing programs and that is valuable.
+`chulengo` takes a different role. It focuses on exposing a smaller raw core
+that is easy to compose from shells, pipes, and other local programs.
+
+It exposes two core operations:
 - `chulengo embed`
 - `chulengo infer`
 
-It is not designed as a final product interface.
-It does not expose descriptor routing, resident session control, internal prompt
-templates, or wrapper protocols.
+`chulengo` exists as a compact foundation for local composition: read from
+`stdin`, write to `stdout`, finish the result, and remain easy to connect with
+other programs.
+
+The name comes from the guanaco, an Argentine relative of the llama. A baby
+guanaco is called a `chulengo`.
 
 ## Interface
 
-The CLI follows a verb-first pattern:
+`chulengo` follows a verb-first shell pattern because it is meant to behave as
+one raw engine primitive inside larger local compositions.
+
+The contract is direct:
+- one verb
+- one stdin payload
+- one stdout result
+- one completed turn boundary with `EOT`
+
+The CLI is:
 
 ```bash
 chulengo embed [options]
 chulengo infer [options]
 ```
 
-Rules:
-- `stdin` is always the dynamic input
-- `stdout` is always the result channel
-- `--type` defaults to `text`
-- `image` is selected explicitly with `--type image`
-- `EOT` (`ASCII 4`) is emitted after each completed result
+Operational rules:
+- `stdin` always carries the dynamic input
+- `stdout` always carries the result
+- `--type` configures the operation and defaults to `text`
+- image input is selected explicitly with `--type image`
+- each completed result ends with `EOT` (`ASCII 4`)
+
+This keeps the binary predictable in pipes and leaves composition decisions to
+the caller: how to route it, persist it, wrap it, or combine it with other
+steps.
 
 ## Embed
 
