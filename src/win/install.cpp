@@ -2,7 +2,7 @@
 #define KC_APP_ID "chulengo"
 
 /**
- * install.c - Win64 installer implementation
+ * install.cpp - Win64 installer implementation
  * Summary: Native installer logic embedded directly in each kc-bin package.
  *
  * Author:  KaisarCode
@@ -23,11 +23,11 @@
 #include <urlmon.h>
 
 #ifndef KC_INSTALLER_TITLE
-#error "KC_INSTALLER_TITLE must be defined before including install.c"
+#error "KC_INSTALLER_TITLE must be defined before including install.cpp"
 #endif
 
 #ifndef KC_APP_ID
-#error "KC_APP_ID must be defined before including install.c"
+#error "KC_APP_ID must be defined before including install.cpp"
 #endif
 
 #define KC_ROUTING_URL "https://raw.githubusercontent.com/kaisarcode/kc-bin-dep/master/etc/installers.win64.json"

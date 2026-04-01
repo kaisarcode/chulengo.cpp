@@ -6,11 +6,11 @@
 # License: https://www.gnu.org/licenses/gpl-3.0.html
 
 NAME = chulengo
-INSTALLER_SRC = src/win/install.c
+INSTALLER_SRC = src/win/install.cpp
 BIN_ROOT = bin
 DEPS_ROOT = lib
 TOOLCHAIN_ROOT = /usr/local/share/kaisarcode/toolchains
-SRC = src/main.c src/pal.h
+SRC = src/main.cpp src/pal.h
 
 INC_DIR = $(DEPS_ROOT)/inc/llama.cpp
 GGML_INC = $(DEPS_ROOT)/inc/ggml
@@ -28,17 +28,17 @@ WIN_GGML = $(GGML_LIB)/libggml.dll.a
 WIN_LLAMA = $(LIB_ROOT)/libllama.dll.a
 WIN_MTMD = $(LIB_ROOT)/libmtmd.dll.a
 
-CC_x86_64 = gcc
-CC_aarch64 = aarch64-linux-gnu-gcc
+CXX_x86_64 = g++
+CXX_aarch64 = aarch64-linux-gnu-g++
 NDK_VER = android-ndk-r27c
 NDK_HOST = linux-x86_64
 NDK_ROOT = $(TOOLCHAIN_ROOT)/ndk/$(NDK_VER)
 NDK_BIN = $(NDK_ROOT)/toolchains/llvm/prebuilt/$(NDK_HOST)/bin
 NDK_API = 24
-CC_arm64_v8a = $(NDK_BIN)/aarch64-linux-android$(NDK_API)-clang
-CC_win64 = x86_64-w64-mingw32-gcc
+CXX_arm64_v8a = $(NDK_BIN)/aarch64-linux-android$(NDK_API)-clang++
+CXX_win64 = x86_64-w64-mingw32-g++
 
-CFLAGS = -Wall -Wextra -Werror -O3 -std=c11 -I$(INC_DIR) -I$(GGML_INC) $(EXTRA_CFLAGS)
+CXXFLAGS = -Wall -Wextra -Werror -O3 -std=c++17 -I$(INC_DIR) -I$(GGML_INC) $(EXTRA_CXXFLAGS)
 LDFLAGS_RUNTIME = $(EXTRA_LDFLAGS)
 SYSLIBS_UNIX = -pthread
 SYSLIBS_WIN = -lws2_32 -ladvapi32 -Wl,--no-insert-timestamp
@@ -52,29 +52,29 @@ all: x86_64 aarch64 arm64-v8a win64
 x86_64: $(BIN_ROOT)/x86_64/$(NAME)
 
 $(BIN_ROOT)/x86_64/$(NAME): $(SRC)
-	$(MAKE) build_arch ARCH=x86_64 CC="$(CC_x86_64)" EXT=""
+	$(MAKE) build_arch ARCH=x86_64 CXX="$(CXX_x86_64)" EXT=""
 
 aarch64: $(BIN_ROOT)/aarch64/$(NAME)
 
 $(BIN_ROOT)/aarch64/$(NAME): $(SRC)
-	$(MAKE) build_arch ARCH=aarch64 CC="$(CC_aarch64)" EXT=""
+	$(MAKE) build_arch ARCH=aarch64 CXX="$(CXX_aarch64)" EXT=""
 
 arm64-v8a: $(BIN_ROOT)/arm64-v8a/$(NAME)
 
 $(BIN_ROOT)/arm64-v8a/$(NAME): $(SRC)
-	@if [ ! -f "$(CC_arm64_v8a)" ]; then \
-		echo "[ERROR] NDK Compiler not found at: $(CC_arm64_v8a)"; \
+	@if [ ! -f "$(CXX_arm64_v8a)" ]; then \
+		echo "[ERROR] NDK Compiler not found at: $(CXX_arm64_v8a)"; \
 		exit 1; \
 	fi
-	$(MAKE) build_arch ARCH=arm64-v8a CC="$(CC_arm64_v8a)" EXT=""
+	$(MAKE) build_arch ARCH=arm64-v8a CXX="$(CXX_arm64_v8a)" EXT=""
 
 win64: $(BIN_ROOT)/win64/$(NAME).exe install.exe
 
 $(BIN_ROOT)/win64/$(NAME).exe: $(SRC)
-	$(MAKE) build_arch ARCH=win64 CC="$(CC_win64)" EXT=".exe" EXTRA_CFLAGS="-D_WIN32_WINNT=0x0601"
+	$(MAKE) build_arch ARCH=win64 CXX="$(CXX_win64)" EXT=".exe" EXTRA_CXXFLAGS="-D_WIN32_WINNT=0x0601"
 
 install.exe: $(INSTALLER_SRC)
-	$(CC_win64) $(CFLAGS) -D_WIN32_WINNT=0x0601 -mwindows $(INSTALLER_SRC) -o install.exe $(WININSTALL)
+	$(CXX_win64) $(CXXFLAGS) -D_WIN32_WINNT=0x0601 -mwindows $(INSTALLER_SRC) -o install.exe $(WININSTALL)
 
 build_arch:
 	mkdir -p $(BIN_ROOT)/$(ARCH)
@@ -84,14 +84,14 @@ build_arch:
 	@for dep in $(DEPS); do \
 		test -f "$$dep" || { echo "[ERROR] Missing $$dep. Run ./lib/build-deps.sh"; exit 1; }; \
 	done
-	$(eval MTMD_CFLAGS = $(if $(findstring win64,$(ARCH)),$(if $(wildcard $(WIN_MTMD)),-DCHULENGO_HAVE_MTMD=1,),$(if $(wildcard $(SHARED_MTMD)),-DCHULENGO_HAVE_MTMD=1,)))
+	$(eval MTMD_CXXFLAGS = $(if $(findstring win64,$(ARCH)),$(if $(wildcard $(WIN_MTMD)),-DCHULENGO_HAVE_MTMD=1,),$(if $(wildcard $(SHARED_MTMD)),-DCHULENGO_HAVE_MTMD=1,)))
 	$(eval OBJS = $(BIN_ROOT)/$(ARCH)/main.o)
-	$(MAKE) $(OBJS) ARCH=$(ARCH) CC="$(CC)" EXT="$(EXT)" EXTRA_CFLAGS="$(EXTRA_CFLAGS) $(MTMD_CFLAGS)"
-	$(CC) $(CFLAGS) $(OBJS) -o $(BIN_ROOT)/$(ARCH)/$(NAME)$(EXT) $(if $(findstring win64,$(ARCH)),$(WIN_DEPS) $(SYSLIBS_WIN),$(SHARED_DEPS) $(SYSLIBS_UNIX)) $(LDFLAGS_RUNTIME)
+	$(MAKE) $(OBJS) ARCH=$(ARCH) CXX="$(CXX)" EXT="$(EXT)" EXTRA_CXXFLAGS="$(EXTRA_CXXFLAGS) $(MTMD_CXXFLAGS)"
+	$(CXX) $(CXXFLAGS) $(OBJS) -o $(BIN_ROOT)/$(ARCH)/$(NAME)$(EXT) $(if $(findstring win64,$(ARCH)),$(WIN_DEPS) $(SYSLIBS_WIN),$(SHARED_DEPS) $(SYSLIBS_UNIX)) $(LDFLAGS_RUNTIME)
 
-$(BIN_ROOT)/$(ARCH)/%.o: src/%.c
+$(BIN_ROOT)/$(ARCH)/%.o: src/%.cpp
 	mkdir -p $(BIN_ROOT)/$(ARCH)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean:
 	rm -rf $(BIN_ROOT) install.exe

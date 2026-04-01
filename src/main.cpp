@@ -423,7 +423,7 @@ static int chulengo_read_stdin(unsigned char **data, size_t *size) {
                 while (capacity < used + count + 1) {
                     capacity *= 2u;
                 }
-                next = realloc(buffer, capacity);
+                next = (unsigned char *)realloc(buffer, capacity);
                 if (!next) {
                     free(buffer);
                     return 1;
@@ -443,7 +443,7 @@ static int chulengo_read_stdin(unsigned char **data, size_t *size) {
     }
 
     if (!buffer) {
-        buffer = malloc(1u);
+        buffer = (unsigned char *)malloc(1u);
         if (!buffer) {
             return 1;
         }
@@ -526,7 +526,7 @@ static int chulengo_tokenize_dynamic(
     }
 
     for (;;) {
-        tokens = malloc(sizeof(*tokens) * (size_t)capacity);
+        tokens = (llama_token *)malloc(sizeof(*tokens) * (size_t)capacity);
         if (!tokens) {
             return 1;
         }
@@ -758,7 +758,7 @@ static int chulengo_embed_image(const chulengo_config *config, const unsigned ch
     mtmd_context *mtmd_ctx = NULL;
     mtmd_bitmap *bitmap = NULL;
     mtmd_input_chunks *chunks = NULL;
-    mtmd_input_text text = {0};
+    mtmd_input_text text = {};
     const mtmd_bitmap *bitmaps[1];
     llama_pos new_n_past = 0;
     float *embedding = NULL;
