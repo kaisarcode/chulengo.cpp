@@ -139,18 +139,24 @@ Layout:
 The final executables link against the vendored `llama.cpp`, `mtmd`, and
 `ggml` runtime libraries stored there.
 
-To refresh those runtime libraries from source:
-
-```bash
-./lib/build-deps.sh
-```
-
 ## Install
 
 Install the current-architecture production binary on Linux:
 
 ```bash
 wget -qO- https://raw.githubusercontent.com/kaisarcode/chulengo.cpp/master/install.sh | bash
+```
+
+Remove the installed application on Linux:
+
+```bash
+wget -qO- https://raw.githubusercontent.com/kaisarcode/chulengo.cpp/master/uninstall.sh | bash
+```
+
+Remove the installed application plus shared runtime dependencies on Linux:
+
+```bash
+wget -qO- https://raw.githubusercontent.com/kaisarcode/chulengo.cpp/master/uninstall.sh | bash -s -- --deps
 ```
 
 Model files are not installed by `install.sh`. You must provide compatible
