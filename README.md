@@ -170,6 +170,10 @@ when the selected operation requires it.
 Windows removal is handled by `uninstall.exe`, which prompts whether shared
 runtime DLLs should also be removed.
 
+## Windows Uninstall
+
+`chulengo` also ships with a dedicated `uninstall.exe`.
+
 ## Local build
 
 ```bash
