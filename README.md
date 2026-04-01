@@ -58,7 +58,7 @@ steps.
 Text embedding from `stdin`:
 
 ```bash
-printf 'delete log files' | chulengo embed --model ./models/bge-small.gguf
+printf 'delete log files' | chulengo embed --model /path/to/model.gguf
 ```
 
 Image embedding from raw bytes on `stdin`:
@@ -66,8 +66,8 @@ Image embedding from raw bytes on `stdin`:
 ```bash
 cat ./samples/image.png | chulengo embed \
     --type image \
-    --model ./models/jina-embeddings-v4-vllm-retrieval.Q4_K_M.gguf \
-    --mmproj ./models/jina-embeddings-v4-vllm-retrieval.mmproj-Q8_0.gguf
+    --model /path/to/model.gguf \
+    --mmproj /path/to/mmproj.gguf
 ```
 
 Output is one raw JSON vector followed by `EOT`.
@@ -78,11 +78,25 @@ Raw text inference from `stdin`:
 
 ```bash
 printf 'Explain vector search in one sentence.' | chulengo infer \
-    --model ./models/SmolLM2-135M-Instruct-Q4_K_M.gguf \
+    --model /path/to/model.gguf \
     --predict 48
 ```
 
 Output is streamed directly to `stdout`, followed by a newline and `EOT`.
+
+State snapshots can be attached directly to one-shot inference:
+
+```bash
+printf 'The capital of France is' | chulengo infer \
+    --model /path/to/model.gguf \
+    --kv /path/to/state.kv
+```
+
+```bash
+printf '.' | chulengo infer \
+    --model /path/to/model.gguf \
+    --kv /path/to/state.kv
+```
 
 ## Parameters
 
@@ -99,6 +113,7 @@ Infer flags:
 | Flag | Description | Default |
 | :--- | :--- | :--- |
 | `--ctx` | Context window | `2048` |
+| `--kv` | Load one KV snapshot if present and save it back after inference | `NULL` |
 | `--predict` | Maximum generated tokens | `128` |
 | `--threads` | CPU worker threads | `4` |
 | `--gpu` | GPU layers offloaded | `999` |

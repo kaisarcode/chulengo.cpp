@@ -52,6 +52,7 @@ typedef struct {
     chulengo_type type;
     const char *model_path;
     const char *mmproj_path;
+    const char *kv_path;
     int n_ctx;
     int n_predict;
     int n_threads;
@@ -97,6 +98,7 @@ static void chulengo_help(void) {
     printf("  --mmproj <path>      Path to the multimodal projector when required\n");
     printf("  --help               Show help\n\n");
     printf("Infer options:\n");
+    printf("  --kv <path>          Load one KV snapshot if present and save it back after inference\n");
     printf("  --ctx <int>          Context size (default: 2048)\n");
     printf("  --predict <int>      Maximum generated tokens (default: 128)\n");
     printf("  --threads <int>      CPU thread count (default: 4)\n");
@@ -237,6 +239,9 @@ static int chulengo_validate(const chulengo_config *config) {
     if (config->command == CHULENGO_COMMAND_INFER && config->type != CHULENGO_TYPE_TEXT) {
         return chulengo_fail_usage("This first cut only supports 'infer --type text'.");
     }
+    if (config->command != CHULENGO_COMMAND_INFER && config->kv_path) {
+        return chulengo_fail_usage("KV state flags are only available for 'infer'.");
+    }
     if (config->n_ctx < 0 || config->n_predict < 0) {
         return chulengo_fail_usage("Numeric values must be non-negative.");
     }
@@ -300,6 +305,13 @@ static int chulengo_parse_args(int argc, char **argv, chulengo_config *config) {
                 return chulengo_fail_usage("Missing value for --mmproj.");
             }
             config->mmproj_path = argv[++i];
+            continue;
+        }
+        if (strcmp(argv[i], "--kv") == 0) {
+            if (i + 1 >= argc) {
+                return chulengo_fail_usage("Missing value for --kv.");
+            }
+            config->kv_path = argv[++i];
             continue;
         }
         if (strcmp(argv[i], "--type") == 0) {
@@ -609,6 +621,75 @@ static struct llama_model *chulengo_load_model(const chulengo_config *config) {
 }
 
 /**
+ * Loads one KV state snapshot into the active context.
+ * @param ctx Active llama context.
+ * @param path KV state path.
+ * @param n_past Receives the restored token count.
+ * @return int 0 on success, 1 on failure.
+ */
+static int chulengo_load_kv_state(struct llama_context *ctx, const char *path, int *n_past) {
+    FILE *file = NULL;
+    llama_memory_t memory = {};
+    llama_pos pos_max = -1;
+    llama_token *tokens = NULL;
+    size_t token_capacity = 0;
+    size_t token_count = 0;
+
+    if (!path || !path[0]) {
+        if (n_past) {
+            *n_past = 0;
+        }
+        return 0;
+    }
+    if (!ctx || !n_past) {
+        return 1;
+    }
+
+    file = fopen(path, "rb");
+    if (!file) {
+        *n_past = 0;
+        return 0;
+    }
+    fclose(file);
+
+    token_capacity = (size_t)llama_n_ctx(ctx);
+    if (token_capacity == 0) {
+        token_capacity = 4096u;
+    }
+    tokens = (llama_token *)malloc(sizeof(*tokens) * token_capacity);
+    if (!tokens) {
+        return 1;
+    }
+    if (!llama_state_load_file(ctx, path, tokens, token_capacity, &token_count)) {
+        free(tokens);
+        return 1;
+    }
+    free(tokens);
+
+    memory = llama_get_memory(ctx);
+    pos_max = llama_memory_seq_pos_max(memory, 0);
+    *n_past = pos_max >= 0 ? (int)pos_max + 1 : 0;
+    llama_memory_seq_rm(memory, 0, *n_past, -1);
+    return 0;
+}
+
+/**
+ * Saves one KV state snapshot from the active context.
+ * @param ctx Active llama context.
+ * @param path KV state path.
+ * @return int 0 on success, 1 on failure.
+ */
+static int chulengo_save_kv_state(struct llama_context *ctx, const char *path) {
+    if (!path || !path[0]) {
+        return 0;
+    }
+    if (!ctx) {
+        return 1;
+    }
+    return llama_state_save_file(ctx, path, NULL, 0) ? 0 : 1;
+}
+
+/**
  * Applies every configured LoRA adapter to one context.
  * @param ctx Active llama context.
  * @param model Active llama model.
@@ -877,6 +958,7 @@ static int chulengo_run_infer(const chulengo_config *config, const char *input) 
     const struct llama_vocab *vocab = NULL;
     llama_token *tokens = NULL;
     int token_count = 0;
+    int n_past = 0;
     int status = 1;
     int i = 0;
 
@@ -901,12 +983,15 @@ static int chulengo_run_infer(const chulengo_config *config, const char *input) 
     if (chulengo_apply_lora(ctx, model, config, adapters) != 0) {
         goto cleanup;
     }
-
-    vocab = llama_model_get_vocab(model);
-    if (chulengo_tokenize_dynamic(vocab, input, true, &tokens, &token_count) != 0 || token_count <= 0) {
+    if (chulengo_load_kv_state(ctx, config->kv_path, &n_past) != 0) {
         goto cleanup;
     }
-    if (config->n_ctx > 0 && token_count >= config->n_ctx) {
+
+    vocab = llama_model_get_vocab(model);
+    if (chulengo_tokenize_dynamic(vocab, input, n_past == 0, &tokens, &token_count) != 0 || token_count <= 0) {
+        goto cleanup;
+    }
+    if (config->n_ctx > 0 && n_past + token_count >= config->n_ctx) {
         goto cleanup;
     }
 
@@ -915,7 +1000,7 @@ static int chulengo_run_infer(const chulengo_config *config, const char *input) 
         batch.n_tokens = token_count;
         for (i = 0; i < token_count; i++) {
             batch.token[i] = tokens[i];
-            batch.pos[i] = i;
+            batch.pos[i] = n_past + i;
             batch.n_seq_id[i] = 1;
             batch.seq_id[i][0] = 0;
             batch.logits[i] = (i + 1 == token_count);
@@ -942,6 +1027,8 @@ static int chulengo_run_infer(const chulengo_config *config, const char *input) 
         llama_sampler_accept(sampler, tokens[i]);
     }
 
+    n_past += token_count;
+
     for (i = 0; i < config->n_predict; i++) {
         llama_token token = llama_sampler_sample(sampler, ctx, -1);
         char piece[256];
@@ -961,7 +1048,7 @@ static int chulengo_run_infer(const chulengo_config *config, const char *input) 
             struct llama_batch batch = llama_batch_init(1, 0, 1);
             batch.n_tokens = 1;
             batch.token[0] = token;
-            batch.pos[0] = token_count + i;
+            batch.pos[0] = n_past;
             batch.n_seq_id[0] = 1;
             batch.seq_id[0][0] = 0;
             batch.logits[0] = 1;
@@ -971,6 +1058,11 @@ static int chulengo_run_infer(const chulengo_config *config, const char *input) 
             }
             llama_batch_free(batch);
         }
+        n_past++;
+    }
+
+    if (chulengo_save_kv_state(ctx, config->kv_path) != 0) {
+        goto cleanup;
     }
 
     if (fputc('\n', stdout) == EOF || fflush(stdout) != 0 || chulengo_write_eot() != 0) {

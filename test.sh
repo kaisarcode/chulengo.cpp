@@ -65,6 +65,7 @@ test_general() {
     printf '%s\n' "$HELP_OUT" | grep -q 'chulengo infer' || fail "Help output missing infer command."
     printf '%s\n' "$HELP_OUT" | grep -q -- '--type' || fail "Help output missing --type."
     printf '%s\n' "$HELP_OUT" | grep -q -- '--predict' || fail "Help output missing infer flags."
+    printf '%s\n' "$HELP_OUT" | grep -q -- '--kv' || fail "Help output missing --kv."
     pass "General: Help output verified."
 
     if "$CHULENGO_BIN" >/dev/null 2>&1; then fail "Missing command should fail."; fi
@@ -72,6 +73,7 @@ test_general() {
     if "$CHULENGO_BIN" embed >/dev/null 2>&1; then fail "Missing --model should fail."; fi
     if "$CHULENGO_BIN" embed --model >/dev/null 2>&1; then fail "Missing --model value should fail."; fi
     if "$CHULENGO_BIN" embed --model /tmp/x --type video >/dev/null 2>&1; then fail "Unsupported --type should fail."; fi
+    if "$CHULENGO_BIN" embed --model /tmp/x --kv /tmp/x.kv >/dev/null 2>&1; then fail "--kv should fail on embed."; fi
     if "$CHULENGO_BIN" infer --model /tmp/x --type image <<< 'x' >/dev/null 2>&1; then fail "infer --type image should fail in the first cut."; fi
     if "$CHULENGO_BIN" infer --model /tmp/x --top-p 2 <<< 'x' >/dev/null 2>&1; then fail "Out-of-range --top-p should fail."; fi
     if "$CHULENGO_BIN" infer --model /tmp/x --lora-scale 1.0 <<< 'x' >/dev/null 2>&1; then fail "--lora-scale without --lora should fail."; fi
@@ -119,6 +121,37 @@ test_real_infer() {
     pass "Functional: Real inference verified."
 }
 
+# Verifies mechanical KV roundtrip support for infer.
+# @return 0 on success.
+test_real_infer_kv() {
+    OUT_A=$(mktemp)
+    OUT_B=$(mktemp)
+    KV_FILE=$(mktemp)
+    rm -f "$KV_FILE"
+    trap 'rm -f "$OUT_A" "$OUT_B" "$KV_FILE"' RETURN
+    printf 'The capital of France is' | "$CHULENGO_BIN" infer \
+        --model "$MODEL_ROOT/llm/SmolV2/SmolLM2-135M-Instruct-Q4_K_M.gguf" \
+        --predict 8 \
+        --gpu 0 \
+        --seed 7 \
+        --kv "$KV_FILE" \
+        >"$OUT_A"
+    [ -s "$KV_FILE" ] || fail "Inference did not save a KV state file."
+    [ "$(count_eot "$OUT_A")" -eq 1 ] || fail "KV save inference did not emit exactly one EOT."
+    printf '.' | "$CHULENGO_BIN" infer \
+        --model "$MODEL_ROOT/llm/SmolV2/SmolLM2-135M-Instruct-Q4_K_M.gguf" \
+        --predict 8 \
+        --gpu 0 \
+        --seed 7 \
+        --kv "$KV_FILE" \
+        >"$OUT_B"
+    [ -s "$OUT_B" ] || fail "Inference with KV load produced no output."
+    [ "$(count_eot "$OUT_B")" -eq 1 ] || fail "KV load inference did not emit exactly one EOT."
+    rm -f "$OUT_A" "$OUT_B" "$KV_FILE"
+    trap - RETURN
+    pass "Functional: Real KV infer verified."
+}
+
 # Verifies real image embedding output when available.
 # @return 0 on success.
 test_real_embed_image() {
@@ -149,6 +182,7 @@ run_tests() {
     test_gateway
     test_real_embed_text
     test_real_infer
+    test_real_infer_kv
     test_real_embed_image
     pass "All tests passed successfully for chulengo."
 }
