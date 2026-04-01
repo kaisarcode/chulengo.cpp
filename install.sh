@@ -1,6 +1,6 @@
 #!/bin/bash
-# install.sh - Production installer for kc-app on Linux.
-# Summary: Installs the current-architecture binary and required shared deps from master using wget.
+# install.sh - Production installer for chulengo on Linux
+# Summary: Installs the current-architecture binary and required runtime deps.
 #
 # Author:  KaisarCode
 # Website: https://kaisarcode.com
@@ -8,39 +8,19 @@
 
 set -e
 
-APP_ID="kc-app"
-CORE_REPO_ROOT="https://raw.githubusercontent.com/kaisarcode/kc-bin"
+APP_ID="chulengo"
+REPO_ID="chulengo.cpp"
+CORE_REPO_ROOT="https://raw.githubusercontent.com/kaisarcode/${REPO_ID}"
 BIN_DEP_REPO_ROOT="https://raw.githubusercontent.com/kaisarcode/kc-bin-dep"
 SYS_BIN_DIR="/usr/local/bin"
-DEPS=""
+SYS_APP_DIR="/usr/local/lib/kaisarcode/apps"
 
-# Prints an error and exits.
+# Prints one error and exits.
 # @param $1 Error message.
 # @return Does not return.
 fail() {
     printf "Error: %s\n" "$1" >&2
     exit 1
-}
-
-# Fails when one remote asset is unavailable.
-# @param $1 Missing asset identifier.
-# @return Does not return.
-fail_unavailable() {
-    fail "Remote asset is not available yet (repo may still be private): $1"
-}
-
-# Verifies that the installer is running on Linux.
-# @return 0 on success.
-require_linux() {
-    [ "$(uname -s)" = "Linux" ] || fail "install.sh currently targets Linux only."
-}
-
-# Verifies that all required host tools are available.
-# @return 0 on success.
-require_tools() {
-    command -v tar >/dev/null 2>&1 || fail "tar is required."
-    command -v cp >/dev/null 2>&1 || fail "cp is required."
-    command -v wget >/dev/null 2>&1 || fail "wget is required."
 }
 
 # Ensures the installer runs with root privileges.
@@ -54,20 +34,16 @@ ensure_root() {
     exec sudo bash "$0" "$@"
 }
 
-# Detects the current machine architecture name.
-# @return Writes the resolved architecture to stdout.
-detect_arch() {
-    case "$(uname -m)" in
-        x86_64) printf "x86_64" ;;
-        aarch64|arm64) printf "aarch64" ;;
-        armv8*|arm64-v8a) printf "arm64-v8a" ;;
-        *) fail "Unsupported architecture: $(uname -m)" ;;
-    esac
+# Reports one unavailable remote asset.
+# @param $1 Missing asset identifier.
+# @return Does not return.
+fail_unavailable() {
+    fail "Remote asset is not available yet (repo may still be private): $1"
 }
 
-# Downloads one remote asset with wget.
+# Downloads one remote asset.
 # @param $1 Source URL.
-# @param $2 Output path.
+# @param $2 Destination path.
 # @return 0 on success.
 download_asset() {
     url="$1"
@@ -83,62 +59,74 @@ download_asset() {
             fail_unavailable "$media_url"
         fi
     fi
-    [ -s "$out" ] || { rm -f "$out"; fail_unavailable "$url"; }
+    [ -s "$out" ] || {
+        rm -f "$out"
+        fail_unavailable "$url"
+    }
 }
 
-# Installs one dependency tree from kc-bin-dep.
-# @param $1 Dependency identifier.
+# Detects the current machine architecture.
+# @return Writes the resolved architecture to stdout.
+detect_arch() {
+    case "$(uname -m)" in
+        x86_64) printf "x86_64" ;;
+        aarch64|arm64) printf "aarch64" ;;
+        armv8*|arm64-v8a) printf "arm64-v8a" ;;
+        *) fail "Unsupported architecture: $(uname -m)" ;;
+    esac
+}
+
+# Installs one runtime binary payload.
+# @param $1 Source directory path.
 # @param $2 Architecture name.
-# @param $3 Local mode flag (true/false).
 # @return 0 on success.
-install_dep() {
-    dep="$1"
+install_runtime_binary() {
+    src_dir="$1"
     arch="$2"
-    branch="$3"
-    wget -qO- "$BIN_DEP_REPO_ROOT/$branch/install.sh" | bash -s -- --branch "$branch" "$dep"
+    mkdir -p "$SYS_APP_DIR/$APP_ID/$arch"
+    install -m 0755 "$src_dir/$APP_ID" "$SYS_APP_DIR/$APP_ID/$arch/$APP_ID"
 }
 
-# Installs the current-architecture production binary.
+# Installs one runtime wrapper in the global bin directory.
 # @param $1 Architecture name.
-# @param $2 Local mode flag (true/false).
 # @return 0 on success.
-install_binary() {
+install_runtime_wrapper() {
     arch="$1"
-    local_mode="$2"
-    branch="$3"
-    bin_rel="bin/${arch}/${APP_ID}"
-
-    if [ "$local_mode" = "true" ]; then
-        [ -f "./$bin_rel" ] || fail "Local binary not found at ./$bin_rel. Run 'make all' first."
-        mkdir -p "$SYS_BIN_DIR"
-        install -m 0755 "./$bin_rel" "$SYS_BIN_DIR/${APP_ID}"
-        return 0
-    fi
-
-    tmp_dir="$(mktemp -d)"
-    trap 'rm -rf "$tmp_dir"' RETURN
-
-    download_asset "${CORE_REPO_ROOT}/$branch/kc-app/${bin_rel}" "$tmp_dir/${APP_ID}"
+    wrapper_path="$SYS_BIN_DIR/$APP_ID"
     mkdir -p "$SYS_BIN_DIR"
-    install -m 0755 "$tmp_dir/${APP_ID}" "$SYS_BIN_DIR/${APP_ID}"
+    printf '%s\n' \
+        '#!/bin/bash' \
+        'set -e' \
+        "exec \"$SYS_APP_DIR/$APP_ID/$arch/$APP_ID\" \"\$@\"" \
+        | tee "$wrapper_path" >/dev/null
+    chmod 0755 "$wrapper_path"
+}
 
-    rm -rf "$tmp_dir"
-    trap - RETURN
+# Checks whether the installed payload already matches the target.
+# @param $1 Source runtime binary path.
+# @param $2 Architecture name.
+# @return 0 when the payload is identical.
+installed_matches_target() {
+    src_bin="$1"
+    arch="$2"
+    [ -f "$SYS_BIN_DIR/$APP_ID" ] || return 1
+    [ -f "$SYS_APP_DIR/$APP_ID/$arch/$APP_ID" ] || return 1
+    cmp -s "$src_bin" "$SYS_APP_DIR/$APP_ID/$arch/$APP_ID"
 }
 
 # Runs the installer entry point.
 # @param $@ Script arguments.
 # @return 0 on success.
 main() {
-    require_linux
-    require_tools
+    [ "$(uname -s)" = "Linux" ] || fail "Only Linux is supported."
     ensure_root "$@"
-    arch="$(detect_arch)"
-    local local_mode="false"
+    arch=$(detect_arch)
+    local local_mode=false
     local branch="master"
+
     while [ $# -gt 0 ]; do
         case "$1" in
-            --local) local_mode="true"; shift ;;
+            --local) local_mode=true; shift ;;
             --branch)
                 [ $# -ge 2 ] || fail "Missing value for --branch"
                 branch="$2"
@@ -152,12 +140,35 @@ main() {
         esac
     done
 
-    for dep in $DEPS; do
-        install_dep "$dep" "$arch" "$branch"
-    done
+    printf ">>> Installing dependencies for %s...\n" "$APP_ID"
+    wget -qO- "$BIN_DEP_REPO_ROOT/$branch/install.sh" | bash -s -- --branch "$branch" llama.cpp
 
-    install_binary "$arch" "$local_mode" "$branch"
-    printf "%s installed.\n" "${APP_ID}"
+    printf ">>> Installing %s binary...\n" "$APP_ID"
+    if [ "$local_mode" = true ]; then
+        bin_path="./bin/$arch/$APP_ID"
+        [ -f "$bin_path" ] || fail "Local binary not found at $bin_path. Run 'make all' first."
+        if installed_matches_target "$bin_path" "$arch"; then
+            printf "%s already installed and up to date. Skipping.\n" "$APP_ID"
+            return 0
+        fi
+        install_runtime_binary "$(pwd)/bin/$arch" "$arch"
+    else
+        tmp_dir=$(mktemp -d)
+        trap 'rm -rf "${tmp_dir:-}"' EXIT
+        download_asset "$CORE_REPO_ROOT/$branch/bin/$arch/$APP_ID" "$tmp_dir/$APP_ID"
+        if installed_matches_target "$tmp_dir/$APP_ID" "$arch"; then
+            rm -rf "${tmp_dir:-}"
+            trap - EXIT
+            printf "%s already installed and up to date. Skipping.\n" "$APP_ID"
+            return 0
+        fi
+        install_runtime_binary "$tmp_dir" "$arch"
+        rm -rf "${tmp_dir:-}"
+        trap - EXIT
+    fi
+
+    install_runtime_wrapper "$arch"
+    printf "\033[1;32m[SUCCESS]\033[0m %s installed.\n" "$APP_ID"
 }
 
 main "$@"

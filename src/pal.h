@@ -1,27 +1,33 @@
 /**
- * kc-app-pal - Platform Abstraction Layer
- * Summary: Descriptor and I/O portability helpers for kc-app.
+ * chulengo-pal - Platform helpers
+ * Summary: Normalizes binary stdin and stdout handling across supported targets.
  *
  * Author:  KaisarCode
  * Website: https://kaisarcode.com
- * License: GNU GPL v3.0
+ * License: https://www.gnu.org/licenses/gpl-3.0.html
  */
 
-#ifndef KC_APP_PAL_H
-#define KC_APP_PAL_H
+#ifndef CHULENGO_PAL_H
+#define CHULENGO_PAL_H
+
+#include <stdio.h>
+
+#define CHULENGO_EOT 4
 
 #ifdef _WIN32
+#include <fcntl.h>
 #include <io.h>
-#define KC_APP_READ _read
-#define KC_APP_WRITE _write
-#define KC_APP_STDIN_FD 0
-#define KC_APP_STDOUT_FD 1
-#else
-#include <unistd.h>
-#define KC_APP_READ read
-#define KC_APP_WRITE write
-#define KC_APP_STDIN_FD STDIN_FILENO
-#define KC_APP_STDOUT_FD STDOUT_FILENO
 #endif
+
+/**
+ * Prepares stdin and stdout for raw payload transport.
+ * @return void
+ */
+static inline void chulengo_prepare_stdio(void) {
+#ifdef _WIN32
+    _setmode(_fileno(stdin), _O_BINARY);
+    _setmode(_fileno(stdout), _O_BINARY);
+#endif
+}
 
 #endif

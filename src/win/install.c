@@ -1,5 +1,5 @@
-#define KC_INSTALLER_TITLE "kc-app installer"
-#define KC_APP_ID "kc-app"
+#define KC_INSTALLER_TITLE "chulengo installer"
+#define KC_APP_ID "chulengo"
 
 /**
  * install.c - Win64 installer implementation

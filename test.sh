@@ -1,31 +1,40 @@
 #!/bin/bash
-# test.sh - Automated test suite for kc-app
-# Summary: Tiered testing for ecosystem compliance and functional logic.
+# test.sh - Automated test suite for chulengo
+# Summary: Validates the compact embed and infer public surface.
 #
 # Author:  KaisarCode
 # Website: https://kaisarcode.com
 # License: GNU GPL v3.0
+
 set -e
 
 SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname "$0")" && pwd)
 APP_ROOT="$SCRIPT_DIR"
+MODEL_ROOT="${CHULENGO_MODEL_ROOT:-./models}"
 
-# Prints failure details to standard output.
-# @param message Error description.
-# @return 1 on failure.
+# Prints one failure and exits.
+# @param $1 Failure message.
+# @return Does not return.
 fail() {
     printf "\033[31m[FAIL]\033[0m %s\n" "$1"
     exit 1
 }
 
-# Prints success details to standard output.
-# @param message Success description.
+# Prints one success line.
+# @param $1 Success message.
 # @return 0 on success.
 pass() {
     printf "\033[32m[PASS]\033[0m %s\n" "$1"
 }
 
-# Prepares environment and verifies local binary availability.
+# Counts EOT bytes in one file.
+# @param $1 File path.
+# @return 0 on success.
+count_eot() {
+    od -An -t u1 "$1" | tr ' ' '\n' | grep -c '^4$' || true
+}
+
+# Resolves the current build artifact.
 # @return 0 on success.
 test_setup() {
     ARCH=$(uname -m)
@@ -36,121 +45,109 @@ test_setup() {
         arm64-v8a) EXT="" ;;
         *) EXT="" ;;
     esac
-    export KC_BIN_EXEC="$APP_ROOT/bin/$ARCH/kc-app$EXT"
-
-    if [ ! -f "$KC_BIN_EXEC" ]; then
-        fail "Binary not found at $KC_BIN_EXEC."
+    export CHULENGO_BIN="$APP_ROOT/bin/$ARCH/chulengo$EXT"
+    [ -x "$CHULENGO_BIN" ] || fail "Binary not found at $CHULENGO_BIN."
+    if [ "$(uname -s)" = "Linux" ] && ldd "$CHULENGO_BIN" | grep -q "not found"; then
+        ldd "$CHULENGO_BIN"
+        fail "Global shared dependencies not found."
     fi
-    pass "Environment verified: using $KC_BIN_EXEC"
+    pass "Environment verified: using $CHULENGO_BIN"
 }
 
-# Verifies help output and fail-fast CLI errors.
+# Verifies command help and fail-fast parsing.
 # @return 0 on success.
 test_general() {
-    if ! "$KC_BIN_EXEC" --help | grep -q "Options:"; then
-        fail "General: Help flag failed."
-    fi
-    pass "General: Help flag verified."
+    HELP_OUT=$("$CHULENGO_BIN" --help)
+    printf '%s\n' "$HELP_OUT" | grep -q 'chulengo embed' || fail "Help output missing embed command."
+    printf '%s\n' "$HELP_OUT" | grep -q 'chulengo infer' || fail "Help output missing infer command."
+    printf '%s\n' "$HELP_OUT" | grep -q -- '--type' || fail "Help output missing --type."
+    printf '%s\n' "$HELP_OUT" | grep -q -- '--predict' || fail "Help output missing infer flags."
+    pass "General: Help output verified."
 
-    if "$KC_BIN_EXEC" --unknown >/dev/null 2>&1; then
-        fail "General: Unknown flag should fail."
-    fi
-    pass "General: Unknown flag fail-fast verified."
-
-    if "$KC_BIN_EXEC" --name >/dev/null 2>&1; then
-        fail "General: Missing --name value should fail."
-    fi
-    pass "General: Missing value fail-fast verified."
-
-    if "$KC_BIN_EXEC" --fd-in bad >/dev/null 2>&1; then
-        fail "General: Invalid --fd-in should fail."
-    fi
-    pass "General: Invalid --fd-in fail-fast verified."
-
-    if "$KC_BIN_EXEC" --fd-out bad >/dev/null 2>&1; then
-        fail "General: Invalid --fd-out should fail."
-    fi
-    pass "General: Invalid --fd-out fail-fast verified."
+    if "$CHULENGO_BIN" >/dev/null 2>&1; then fail "Missing command should fail."; fi
+    if "$CHULENGO_BIN" unknown >/dev/null 2>&1; then fail "Unknown command should fail."; fi
+    if "$CHULENGO_BIN" embed >/dev/null 2>&1; then fail "Missing --model should fail."; fi
+    if "$CHULENGO_BIN" embed --model >/dev/null 2>&1; then fail "Missing --model value should fail."; fi
+    if "$CHULENGO_BIN" embed --model /tmp/x --type video >/dev/null 2>&1; then fail "Unsupported --type should fail."; fi
+    if "$CHULENGO_BIN" infer --model /tmp/x --type image <<< 'x' >/dev/null 2>&1; then fail "infer --type image should fail in the first cut."; fi
+    if "$CHULENGO_BIN" infer --model /tmp/x --top-p 2 <<< 'x' >/dev/null 2>&1; then fail "Out-of-range --top-p should fail."; fi
+    if "$CHULENGO_BIN" infer --model /tmp/x --lora-scale 1.0 <<< 'x' >/dev/null 2>&1; then fail "--lora-scale without --lora should fail."; fi
+    pass "General: Fail-fast CLI verified."
 }
 
-# Verifies application-specific greeting logic.
+# Verifies gateway errors without relying on model success.
 # @return 0 on success.
-test_functional() {
-    OUTPUT=$(printf '\n' | "$KC_BIN_EXEC")
-    if [ "$OUTPUT" != "Hello, World!" ]; then
-        fail "Functional: Default greeting failed."
+test_gateway() {
+    if printf 'hello' | "$CHULENGO_BIN" embed --model /tmp/not-real.gguf >/dev/null 2>&1; then
+        fail "Text embedding should fail with a missing model."
     fi
-    pass "Functional: Default greeting verified."
-
-    OUTPUT=$(printf '\n' | "$KC_BIN_EXEC" --name John)
-    if [ "$OUTPUT" != "Hello, John!" ]; then
-        fail "Functional: Greeting logic failed."
+    if printf 'hello' | "$CHULENGO_BIN" infer --model /tmp/not-real.gguf >/dev/null 2>&1; then
+        fail "Inference should fail with a missing model."
     fi
-    pass "Functional: Greeting logic verified."
-
-    OUTPUT=$(echo "John Doe" | "$KC_BIN_EXEC")
-    if [ "$OUTPUT" != "Hello, John Doe!" ]; then
-        fail "Functional: STDIN greeting failed."
+    if "$CHULENGO_BIN" embed --type image --model "$MODEL_ROOT/emb/jina-embeddings-v4-vllm-retrieval.Q4_K_M.gguf" <"$MODEL_ROOT/img/1.png" >/dev/null 2>&1; then
+        fail "Image embedding should require --mmproj."
     fi
-    pass "Functional: STDIN greeting verified."
+    pass "Functional: Gateway validation verified."
+}
 
-    OUTPUT=$(echo "Alice" | "$KC_BIN_EXEC" --name John)
-    if [ "$OUTPUT" != "Hello, Alice!" ]; then
-        fail "Functional: STDIN precedence failed."
-    fi
-    pass "Functional: STDIN precedence verified."
-
-    exec 3<<'EOF'
-Alice
-EOF
-    OUTPUT=$("$KC_BIN_EXEC" --fd-in 3)
-    exec 3<&-
-    if [ "$OUTPUT" != "Hello, Alice!" ]; then
-        fail "Functional: Descriptor input greeting failed."
-    fi
-    pass "Functional: Descriptor input greeting verified."
-
-    exec 3<<'EOF'
-
-EOF
-    OUTPUT=$("$KC_BIN_EXEC" --fd-in 3 --name Jane)
-    exec 3<&-
-    if [ "$OUTPUT" != "Hello, Jane!" ]; then
-        fail "Functional: Descriptor input fallback to --name failed."
-    fi
-    pass "Functional: Descriptor input fallback to --name verified."
-
-    exec 3<<'EOF'
-
-EOF
-    OUTPUT=$("$KC_BIN_EXEC" --fd-in 3)
-    exec 3<&-
-    if [ "$OUTPUT" != "Hello, World!" ]; then
-        fail "Functional: Descriptor input fallback to default failed."
-    fi
-    pass "Functional: Descriptor input fallback to default verified."
-
+# Verifies real text embedding output.
+# @return 0 on success.
+test_real_embed_text() {
     OUT_FILE=$(mktemp)
     trap 'rm -f "$OUT_FILE"' RETURN
-    exec 4>"$OUT_FILE"
-    printf '\n' | "$KC_BIN_EXEC" --name Jane --fd-out 4
-    exec 4>&-
-    OUTPUT=$(cat "$OUT_FILE")
-    if [ "$OUTPUT" != "Hello, Jane!" ]; then
-        fail "Functional: Descriptor output greeting failed."
-    fi
-    pass "Functional: Descriptor output greeting verified."
+    printf 'vector search' | "$CHULENGO_BIN" embed --model "$MODEL_ROOT/emb/bge-small.gguf" >"$OUT_FILE"
+    grep -q '^\[' "$OUT_FILE" || fail "Text embedding did not emit JSON."
+    [ "$(count_eot "$OUT_FILE")" -eq 1 ] || fail "Text embedding did not emit exactly one EOT."
     rm -f "$OUT_FILE"
     trap - RETURN
+    pass "Functional: Real text embedding verified."
 }
 
-# Entry point for the automated test suite.
+# Verifies real text inference output.
+# @return 0 on success.
+test_real_infer() {
+    OUT_FILE=$(mktemp)
+    trap 'rm -f "$OUT_FILE"' RETURN
+    printf 'Say hello in five words.' | "$CHULENGO_BIN" infer --model "$MODEL_ROOT/llm/SmolV2/SmolLM2-135M-Instruct-Q4_K_M.gguf" --predict 16 --gpu 0 >"$OUT_FILE"
+    [ -s "$OUT_FILE" ] || fail "Inference produced no output."
+    [ "$(count_eot "$OUT_FILE")" -eq 1 ] || fail "Inference did not emit exactly one EOT."
+    rm -f "$OUT_FILE"
+    trap - RETURN
+    pass "Functional: Real inference verified."
+}
+
+# Verifies real image embedding output when available.
+# @return 0 on success.
+test_real_embed_image() {
+    if [ "$(uname -m)" != "x86_64" ]; then
+        pass "Functional: Image embedding skipped on non-x86_64 host."
+        return 0
+    fi
+    OUT_FILE=$(mktemp)
+    trap 'rm -f "$OUT_FILE"' RETURN
+    "$CHULENGO_BIN" embed \
+        --type image \
+        --model "$MODEL_ROOT/emb/jina-embeddings-v4-vllm-retrieval.Q4_K_M.gguf" \
+        --mmproj "$MODEL_ROOT/emb/jina-embeddings-v4-vllm-retrieval.mmproj-Q8_0.gguf" \
+        <"$MODEL_ROOT/img/1.png" \
+        >"$OUT_FILE"
+    grep -q '^\[' "$OUT_FILE" || fail "Image embedding did not emit JSON."
+    [ "$(count_eot "$OUT_FILE")" -eq 1 ] || fail "Image embedding did not emit exactly one EOT."
+    rm -f "$OUT_FILE"
+    trap - RETURN
+    pass "Functional: Real image embedding verified."
+}
+
+# Runs the full test suite.
 # @return 0 on success.
 run_tests() {
     test_setup
     test_general
-    test_functional
-    pass "All tests passed successfully."
+    test_gateway
+    test_real_embed_text
+    test_real_infer
+    test_real_embed_image
+    pass "All tests passed successfully for chulengo."
 }
 
 run_tests

@@ -1,88 +1,109 @@
-# kc-app - Minimal Reference App
+# chulengo - Raw llama.cpp core binary
 
-Minimal greeting application used to validate the base structure of a native
-CLI app, including argument parsing, descriptor-based input, and descriptor-
-based output.
+`chulengo` is a minimal raw binary built directly on top of `llama.cpp`.
 
-## Resolution Order
+It exposes only two operations:
+- `chulengo embed`
+- `chulengo infer`
 
-`kc-app` always reads from the resolved input descriptor first.
+It is not designed as a final product interface.
+It does not expose descriptor routing, resident session control, internal prompt
+templates, or wrapper protocols.
 
-Resolution order:
+## Interface
 
-1. Read from `--fd-in <n>` when provided, otherwise read from `stdin`
-2. If the resolved input produces a non-empty value, use that value
-3. If the resolved input produces an empty value, fall back to `--name`
-4. If `--name` is not provided, fall back to `World`
-
-This is a blueprint application. It may block while waiting for stream input,
-depending on the selected descriptor and the input sentinel used by the stream.
-
-## Usage
-
-### Default greeting fallback
+The CLI follows a verb-first pattern:
 
 ```bash
-printf '\n' | kc-app
-Hello, World!
+chulengo embed [options]
+chulengo infer [options]
 ```
 
-### Custom greeting fallback
+Rules:
+- `stdin` is always the dynamic input
+- `stdout` is always the result channel
+- `--type` defaults to `text`
+- `image` is selected explicitly with `--type image`
+- `EOT` (`ASCII 4`) is emitted after each completed result
+
+## Embed
+
+Text embedding from `stdin`:
 
 ```bash
-printf '\n' | kc-app --name "John"
-Hello, John!
+printf 'delete log files' | chulengo embed --model ./models/bge-small.gguf
 ```
 
-### Descriptor input
+Image embedding from raw bytes on `stdin`:
 
 ```bash
-exec 3<<<"Alice"
-kc-app --fd-in 3
-Hello, Alice!
+cat ./samples/image.png | chulengo embed \
+    --type image \
+    --model ./models/jina-embeddings-v4-vllm-retrieval.Q4_K_M.gguf \
+    --mmproj ./models/jina-embeddings-v4-vllm-retrieval.mmproj-Q8_0.gguf
 ```
 
-### Standard input
+Output is one raw JSON vector followed by `EOT`.
+
+## Infer
+
+Raw text inference from `stdin`:
 
 ```bash
-echo "John Doe" | kc-app
-Hello, John Doe!
+printf 'Explain vector search in one sentence.' | chulengo infer \
+    --model ./models/SmolLM2-135M-Instruct-Q4_K_M.gguf \
+    --predict 48
 ```
 
-### Descriptor output
+Output is streamed directly to `stdout`, followed by a newline and `EOT`.
 
-```bash
-exec 4>output.txt
-printf '\n' | kc-app --name "John" --fd-out 4
-cat output.txt
-Hello, John!
-```
+## Parameters
 
-## Full Parameter Reference
+Shared flags:
 
 | Flag | Description | Default |
 | :--- | :--- | :--- |
-| `--name` | Fallback name used when input resolves empty | `World` |
-| `--fd-in` | Input descriptor to read before applying fallbacks | `stdin` |
-| `--fd-out` | Output descriptor for the greeting | `stdout` |
-| `--help` | Show help and usage | `false` |
+| `--model` | Path to the GGUF model file | required |
+| `--type` | Operation input type | `text` |
+| `--mmproj` | Multimodal projector path when required | `NULL` |
+
+Infer flags:
+
+| Flag | Description | Default |
+| :--- | :--- | :--- |
+| `--ctx` | Context window | `2048` |
+| `--predict` | Maximum generated tokens | `128` |
+| `--threads` | CPU worker threads | `4` |
+| `--gpu` | GPU layers offloaded | `999` |
+| `--temp` | Temperature | `0.80` |
+| `--top-k` | Top-K sampling | `40` |
+| `--top-p` | Top-P sampling | `0.95` |
+| `--penalty` | Repeat penalty | `1.10` |
+| `--repeat-last-n` | Repeat window | `64` |
+| `--seed` | RNG seed | `-1` |
+| `--lora` | LoRA adapter path | `NULL` |
+| `--lora-scale` | Scale for the previous LoRA entry | `1.0` |
 
 ## Dependencies
 
-- This program does not have external dependencies.
+This binary links against:
+- [`llama.cpp`](https://github.com/kaisarcode/kc-bin-dep/tree/slave/lib/llama.cpp)
 
-## Windows Installation
+## Local build
 
-`kc-app` ships with a dedicated `install.exe`. Double click it on Windows and it will:
+```bash
+make x86_64
+make aarch64
+make arm64-v8a
+make win64
+make all
+```
 
-- open a native Windows installer window
-- download a global installer routing manifest from `kc-bin-dep/etc`
-- resolve the current `kc-app` manifest through that routing file
-- download only the files declared by that manifest
-- install them under `C:\Program Files\KaisarCode`
-- register the required `PATH` entries
+## Testing
 
-The installer does not embed the app payload. The manifests in the repo tell it what to download and where to place it.
+```bash
+./test.sh
+```
 
 ---
 
