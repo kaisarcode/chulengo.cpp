@@ -22,11 +22,11 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <thread>
 #include <string.h>
 
 #define CHULENGO_DEFAULT_CTX 2048
 #define CHULENGO_DEFAULT_PREDICT 128
-#define CHULENGO_DEFAULT_THREADS 4
 #define CHULENGO_DEFAULT_GPU 999
 #define CHULENGO_DEFAULT_REPEAT_LAST_N 64
 #define CHULENGO_DEFAULT_TEMP 0.80f
@@ -101,7 +101,7 @@ static void chulengo_help(void) {
     printf("  --kv <path>          Load one KV snapshot if present and save it back after inference\n");
     printf("  --ctx <int>          Context size (default: 2048)\n");
     printf("  --predict <int>      Maximum generated tokens (default: 128)\n");
-    printf("  --threads <int>      CPU thread count (default: 4)\n");
+    printf("  --threads <int>      CPU thread count (default: auto)\n");
     printf("  --gpu <int>          GPU layer count (default: 999)\n");
     printf("  --temp <float>       Temperature (default: 0.80)\n");
     printf("  --top-k <int>        Top-K sampling (default: 40)\n");
@@ -140,11 +140,13 @@ static int chulengo_fail_usage(const char *message) {
  * @return void
  */
 static void chulengo_config_init(chulengo_config *config) {
+    unsigned int threads = std::thread::hardware_concurrency();
+
     memset(config, 0, sizeof(*config));
     config->type = CHULENGO_TYPE_TEXT;
     config->n_ctx = CHULENGO_DEFAULT_CTX;
     config->n_predict = CHULENGO_DEFAULT_PREDICT;
-    config->n_threads = CHULENGO_DEFAULT_THREADS;
+    config->n_threads = threads > 0 ? (int)threads : 1;
     config->n_gpu_layers = CHULENGO_DEFAULT_GPU;
     config->temperature = CHULENGO_DEFAULT_TEMP;
     config->top_k = CHULENGO_DEFAULT_TOP_K;
