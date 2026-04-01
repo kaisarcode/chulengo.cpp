@@ -167,6 +167,9 @@ when the selected operation requires it.
 
 `chulengo` also ships with a dedicated `install.exe`.
 
+Windows removal is handled by `uninstall.exe`, which prompts whether shared
+runtime DLLs should also be removed.
+
 ## Local build
 
 ```bash

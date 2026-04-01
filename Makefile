@@ -7,6 +7,7 @@
 
 NAME = chulengo
 INSTALLER_SRC = src/win/install.cpp
+UNINSTALLER_SRC = src/win/uninstall.cpp
 BIN_ROOT = bin
 DEPS_ROOT = lib
 TOOLCHAIN_ROOT = /usr/local/share/kaisarcode/toolchains
@@ -68,13 +69,16 @@ $(BIN_ROOT)/arm64-v8a/$(NAME): $(SRC)
 	fi
 	$(MAKE) build_arch ARCH=arm64-v8a CXX="$(CXX_arm64_v8a)" EXT=""
 
-win64: $(BIN_ROOT)/win64/$(NAME).exe install.exe
+win64: $(BIN_ROOT)/win64/$(NAME).exe install.exe uninstall.exe
 
 $(BIN_ROOT)/win64/$(NAME).exe: $(SRC)
 	$(MAKE) build_arch ARCH=win64 CXX="$(CXX_win64)" EXT=".exe" EXTRA_CXXFLAGS="-D_WIN32_WINNT=0x0601"
 
 install.exe: $(INSTALLER_SRC)
 	$(CXX_win64) $(CXXFLAGS) -D_WIN32_WINNT=0x0601 -mwindows $(INSTALLER_SRC) -o install.exe $(WININSTALL)
+
+uninstall.exe: $(UNINSTALLER_SRC)
+	$(CXX_win64) $(CXXFLAGS) -D_WIN32_WINNT=0x0601 -mwindows $(UNINSTALLER_SRC) -o uninstall.exe $(WININSTALL)
 
 build_arch:
 	mkdir -p $(BIN_ROOT)/$(ARCH)
@@ -94,4 +98,4 @@ $(BIN_ROOT)/$(ARCH)/%.o: src/%.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean:
-	rm -rf $(BIN_ROOT) install.exe
+	rm -rf $(BIN_ROOT) install.exe uninstall.exe
