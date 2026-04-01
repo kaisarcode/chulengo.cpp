@@ -12,6 +12,7 @@
 #include "pal.h"
 
 #include <errno.h>
+#include <ggml-backend.h>
 #include <limits.h>
 #include <llama.h>
 #ifdef CHULENGO_HAVE_MTMD
@@ -24,6 +25,10 @@
 #include <stdlib.h>
 #include <thread>
 #include <string.h>
+
+#ifndef _WIN32
+#include <dlfcn.h>
+#endif
 
 #define CHULENGO_DEFAULT_CTX 2048
 #define CHULENGO_DEFAULT_PREDICT 128
@@ -79,6 +84,38 @@ static void chulengo_log_silent(enum ggml_log_level level, const char *text, voi
     (void)level;
     (void)text;
     (void)user_data;
+}
+
+/**
+ * Loads dynamic ggml backends from the same directory as libggml.
+ * @return void
+ */
+static void chulengo_load_backends(void) {
+#ifdef _WIN32
+    ggml_backend_load_all();
+#else
+    Dl_info info;
+    char path[PATH_MAX];
+    char *slash = NULL;
+
+    memset(&info, 0, sizeof(info));
+    memset(path, 0, sizeof(path));
+    if (dladdr((void *)ggml_backend_load_all_from_path, &info) == 0 || info.dli_fname == NULL) {
+        ggml_backend_load_all();
+        return;
+    }
+    if (snprintf(path, sizeof(path), "%s", info.dli_fname) < 0 || path[0] == '\0') {
+        ggml_backend_load_all();
+        return;
+    }
+    slash = strrchr(path, '/');
+    if (slash == NULL) {
+        ggml_backend_load_all();
+        return;
+    }
+    *slash = '\0';
+    ggml_backend_load_all_from_path(path);
+#endif
 }
 
 /**
@@ -1115,6 +1152,7 @@ int main(int argc, char **argv) {
         return chulengo_fail("Unable to read stdin.");
     }
 
+    chulengo_load_backends();
     llama_backend_init();
     if (config.command == CHULENGO_COMMAND_EMBED) {
         status = chulengo_run_embed(&config, input, input_size);

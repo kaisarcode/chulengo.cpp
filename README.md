@@ -145,6 +145,22 @@ To refresh those runtime libraries from source:
 ./lib/build-deps.sh
 ```
 
+## Install
+
+Install the current-architecture production binary on Linux:
+
+```bash
+wget -qO- https://raw.githubusercontent.com/kaisarcode/chulengo.cpp/master/install.sh | bash
+```
+
+Model files are not installed by `install.sh`. You must provide compatible
+GGUF model files yourself and pass them through `--model`, plus `--mmproj`
+when the selected operation requires it.
+
+## Windows Installation
+
+`chulengo` also ships with a dedicated `install.exe`.
+
 ## Local build
 
 ```bash
