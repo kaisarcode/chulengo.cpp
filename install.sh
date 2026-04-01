@@ -1,6 +1,6 @@
 #!/bin/bash
 # install.sh - Production installer for chulengo on Linux
-# Summary: Installs the current-architecture binary and required runtime deps.
+# Summary: Installs the current-architecture binary and shared runtime dependencies.
 #
 # Author:  KaisarCode
 # Website: https://kaisarcode.com
@@ -10,10 +10,10 @@ set -e
 
 APP_ID="chulengo"
 REPO_ID="chulengo.cpp"
-CORE_REPO_ROOT="https://raw.githubusercontent.com/kaisarcode/${REPO_ID}"
-BIN_DEP_REPO_ROOT="https://raw.githubusercontent.com/kaisarcode/kc-bin-dep"
+CORE_REPO_ROOT="https://raw.githubusercontent.com/kaisarcode/${REPO_ID}/master"
 SYS_BIN_DIR="/usr/local/bin"
 SYS_APP_DIR="/usr/local/lib/kaisarcode/apps"
+SYS_DEP_DIR="/usr/local/lib/kaisarcode"
 
 # Prints one error and exits.
 # @param $1 Error message.
@@ -87,6 +87,21 @@ install_runtime_binary() {
     install -m 0755 "$src_dir/$APP_ID" "$SYS_APP_DIR/$APP_ID/$arch/$APP_ID"
 }
 
+# Installs one runtime dependency payload.
+# @param $1 Source directory path.
+# @param $2 Stack name.
+# @param $3 Architecture name.
+# @return 0 on success.
+install_runtime_deps() {
+    src_dir="$1"
+    stack="$2"
+    arch="$3"
+    mkdir -p "$SYS_DEP_DIR/obj/$stack/$arch"
+    find "$src_dir/$stack/$arch" -maxdepth 1 -type f | while IFS= read -r dep_path; do
+        install -m 0644 "$dep_path" "$SYS_DEP_DIR/obj/$stack/$arch/$(basename "$dep_path")"
+    done
+}
+
 # Installs one runtime wrapper in the global bin directory.
 # @param $1 Architecture name.
 # @return 0 on success.
@@ -97,21 +112,10 @@ install_runtime_wrapper() {
     printf '%s\n' \
         '#!/bin/bash' \
         'set -e' \
+        "export LD_LIBRARY_PATH=\"$SYS_DEP_DIR/obj/llama.cpp/$arch:$SYS_DEP_DIR/obj/ggml/$arch\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}\"" \
         "exec \"$SYS_APP_DIR/$APP_ID/$arch/$APP_ID\" \"\$@\"" \
         | tee "$wrapper_path" >/dev/null
     chmod 0755 "$wrapper_path"
-}
-
-# Checks whether the installed payload already matches the target.
-# @param $1 Source runtime binary path.
-# @param $2 Architecture name.
-# @return 0 when the payload is identical.
-installed_matches_target() {
-    src_bin="$1"
-    arch="$2"
-    [ -f "$SYS_BIN_DIR/$APP_ID" ] || return 1
-    [ -f "$SYS_APP_DIR/$APP_ID/$arch/$APP_ID" ] || return 1
-    cmp -s "$src_bin" "$SYS_APP_DIR/$APP_ID/$arch/$APP_ID"
 }
 
 # Runs the installer entry point.
@@ -122,49 +126,38 @@ main() {
     ensure_root "$@"
     arch=$(detect_arch)
     local local_mode=false
-    local branch="master"
 
     while [ $# -gt 0 ]; do
         case "$1" in
             --local) local_mode=true; shift ;;
-            --branch)
-                [ $# -ge 2 ] || fail "Missing value for --branch"
-                branch="$2"
-                shift 2
-                ;;
-            --branch=*)
-                branch="${1#--branch=}"
-                shift
-                ;;
             *) fail "Unknown argument: $1" ;;
         esac
     done
 
-    printf ">>> Installing dependencies for %s...\n" "$APP_ID"
-    wget -qO- "$BIN_DEP_REPO_ROOT/$branch/install.sh" | bash -s -- --branch "$branch" llama.cpp
-
-    printf ">>> Installing %s binary...\n" "$APP_ID"
+    printf ">>> Installing %s runtime dependencies...\n" "$APP_ID"
     if [ "$local_mode" = true ]; then
         bin_path="./bin/$arch/$APP_ID"
         [ -f "$bin_path" ] || fail "Local binary not found at $bin_path. Run 'make all' first."
-        if installed_matches_target "$bin_path" "$arch"; then
-            printf "%s already installed and up to date. Skipping.\n" "$APP_ID"
-            return 0
-        fi
+        [ -d "./lib/obj/llama.cpp/$arch" ] || fail "Local llama.cpp dependencies not found for $arch. Run './lib/build-deps.sh' first."
+        [ -d "./lib/obj/ggml/$arch" ] || fail "Local ggml dependencies not found for $arch. Run './lib/build-deps.sh' first."
+        install_runtime_deps "$(pwd)/lib/obj" "llama.cpp" "$arch"
+        install_runtime_deps "$(pwd)/lib/obj" "ggml" "$arch"
+        printf ">>> Installing %s binary...\n" "$APP_ID"
         install_runtime_binary "$(pwd)/bin/$arch" "$arch"
     else
-        tmp_dir=$(mktemp -d)
-        trap 'rm -rf "${tmp_dir:-}"' EXIT
-        download_asset "$CORE_REPO_ROOT/$branch/bin/$arch/$APP_ID" "$tmp_dir/$APP_ID"
-        if installed_matches_target "$tmp_dir/$APP_ID" "$arch"; then
-            rm -rf "${tmp_dir:-}"
-            trap - EXIT
-            printf "%s already installed and up to date. Skipping.\n" "$APP_ID"
-            return 0
+        mkdir -p "$SYS_DEP_DIR/obj/llama.cpp/$arch"
+        mkdir -p "$SYS_DEP_DIR/obj/ggml/$arch"
+        mkdir -p "$SYS_APP_DIR/$APP_ID/$arch"
+        download_asset "$CORE_REPO_ROOT/bin/$arch/$APP_ID" "$SYS_APP_DIR/$APP_ID/$arch/$APP_ID"
+        chmod 0755 "$SYS_APP_DIR/$APP_ID/$arch/$APP_ID"
+        download_asset "$CORE_REPO_ROOT/lib/obj/llama.cpp/$arch/libllama.so" "$SYS_DEP_DIR/obj/llama.cpp/$arch/libllama.so"
+        download_asset "$CORE_REPO_ROOT/lib/obj/llama.cpp/$arch/libmtmd.so" "$SYS_DEP_DIR/obj/llama.cpp/$arch/libmtmd.so"
+        download_asset "$CORE_REPO_ROOT/lib/obj/ggml/$arch/libggml.so" "$SYS_DEP_DIR/obj/ggml/$arch/libggml.so"
+        download_asset "$CORE_REPO_ROOT/lib/obj/ggml/$arch/libggml-base.so" "$SYS_DEP_DIR/obj/ggml/$arch/libggml-base.so"
+        download_asset "$CORE_REPO_ROOT/lib/obj/ggml/$arch/libggml-cpu.so" "$SYS_DEP_DIR/obj/ggml/$arch/libggml-cpu.so"
+        if [ "$arch" = "x86_64" ]; then
+            download_asset "$CORE_REPO_ROOT/lib/obj/ggml/$arch/libggml-cuda.so" "$SYS_DEP_DIR/obj/ggml/$arch/libggml-cuda.so"
         fi
-        install_runtime_binary "$tmp_dir" "$arch"
-        rm -rf "${tmp_dir:-}"
-        trap - EXIT
     fi
 
     install_runtime_wrapper "$arch"

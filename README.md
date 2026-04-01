@@ -113,8 +113,22 @@ Infer flags:
 
 ## Dependencies
 
-This binary links against:
-- [`llama.cpp`](https://github.com/kaisarcode/kc-bin-dep/tree/slave/lib/llama.cpp)
+`chulengo` carries its native build dependencies inside this repository under
+`lib/`.
+
+Layout:
+- `lib/inc` contains the headers used by the build
+- `lib/obj` contains the shared runtime libraries used for the final link on
+    each supported target
+
+The final executables link against the vendored `llama.cpp`, `mtmd`, and
+`ggml` runtime libraries stored there.
+
+To refresh those runtime libraries from source:
+
+```bash
+./lib/build-deps.sh
+```
 
 ## Local build
 

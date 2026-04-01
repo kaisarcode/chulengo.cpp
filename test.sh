@@ -47,9 +47,12 @@ test_setup() {
     esac
     export CHULENGO_BIN="$APP_ROOT/bin/$ARCH/chulengo$EXT"
     [ -x "$CHULENGO_BIN" ] || fail "Binary not found at $CHULENGO_BIN."
-    if [ "$(uname -s)" = "Linux" ] && ldd "$CHULENGO_BIN" | grep -q "not found"; then
-        ldd "$CHULENGO_BIN"
-        fail "Global shared dependencies not found."
+    if [ "$(uname -s)" = "Linux" ]; then
+        export LD_LIBRARY_PATH="$APP_ROOT/lib/obj/llama.cpp/$ARCH:$APP_ROOT/lib/obj/ggml/$ARCH${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+        if ldd "$CHULENGO_BIN" | grep -q 'not found'; then
+            ldd "$CHULENGO_BIN"
+            fail "Shared runtime dependencies are missing."
+        fi
     fi
     pass "Environment verified: using $CHULENGO_BIN"
 }
