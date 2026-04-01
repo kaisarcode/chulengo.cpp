@@ -121,7 +121,7 @@ Infer flags:
 | `--top-k` | Top-K sampling | `40` |
 | `--top-p` | Top-P sampling | `0.95` |
 | `--penalty` | Repeat penalty | `1.10` |
-| `--repeat-last-n` | Repeat window | `64` |
+| `--repeat-last-n` | Recent token window for repeat penalty | `64` |
 | `--seed` | RNG seed | `-1` |
 | `--lora` | LoRA adapter path | `NULL` |
 | `--lora-scale` | Scale for the previous LoRA entry | `1.0` |
