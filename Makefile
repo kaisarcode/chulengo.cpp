@@ -45,6 +45,8 @@ SYSLIBS_UNIX = -pthread
 SYSLIBS_WIN = -lws2_32 -ladvapi32 -Wl,--no-insert-timestamp
 WINSOCK = -lws2_32 -ladvapi32 -Wl,--no-insert-timestamp
 WININSTALL = -lurlmon -lshell32 -ladvapi32 -lshlwapi -lcomctl32 -Wl,--no-insert-timestamp
+LOCAL_RPATH = -Wl,-rpath,'$$$$ORIGIN/../../lib/obj/llama.cpp/$(ARCH):$$$$ORIGIN/../../lib/obj/ggml/$(ARCH)'
+INSTALL_RPATH = -Wl,-rpath,/usr/local/lib/kaisarcode/obj/llama.cpp/$(ARCH):/usr/local/lib/kaisarcode/obj/ggml/$(ARCH)
 
 .PHONY: all clean build_arch x86_64 aarch64 arm64-v8a win64
 
@@ -90,8 +92,9 @@ build_arch:
 	done
 	$(eval MTMD_CXXFLAGS = $(if $(findstring win64,$(ARCH)),$(if $(wildcard $(WIN_MTMD)),-DCHULENGO_HAVE_MTMD=1,),$(if $(wildcard $(SHARED_MTMD)),-DCHULENGO_HAVE_MTMD=1,)))
 	$(eval OBJS = $(BIN_ROOT)/$(ARCH)/main.o)
+	$(eval RPATH_FLAGS = $(if $(findstring win64,$(ARCH)),,$(LOCAL_RPATH) $(INSTALL_RPATH)))
 	$(MAKE) $(OBJS) ARCH=$(ARCH) CXX="$(CXX)" EXT="$(EXT)" EXTRA_CXXFLAGS="$(EXTRA_CXXFLAGS) $(MTMD_CXXFLAGS)"
-	$(CXX) $(CXXFLAGS) $(OBJS) -o $(BIN_ROOT)/$(ARCH)/$(NAME)$(EXT) $(if $(findstring win64,$(ARCH)),$(WIN_DEPS) $(SYSLIBS_WIN),$(SHARED_DEPS) $(SYSLIBS_UNIX)) $(LDFLAGS_RUNTIME)
+	$(CXX) $(CXXFLAGS) $(OBJS) -o $(BIN_ROOT)/$(ARCH)/$(NAME)$(EXT) $(if $(findstring win64,$(ARCH)),$(WIN_DEPS) $(SYSLIBS_WIN),$(SHARED_DEPS) $(SYSLIBS_UNIX)) $(RPATH_FLAGS) $(LDFLAGS_RUNTIME)
 
 $(BIN_ROOT)/$(ARCH)/%.o: src/%.cpp
 	mkdir -p $(BIN_ROOT)/$(ARCH)

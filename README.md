@@ -107,6 +107,7 @@ Shared flags:
 | `--model` | Path to the GGUF model file | required |
 | `--type` | Operation input type | `text` |
 | `--mmproj` | Multimodal projector path when required | `NULL` |
+| `--version`, `-v` | Show binary version | `false` |
 
 Infer flags:
 

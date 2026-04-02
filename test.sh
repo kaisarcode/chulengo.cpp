@@ -47,6 +47,8 @@ test_setup() {
     esac
     export CHULENGO_BIN="$APP_ROOT/bin/$ARCH/chulengo$EXT"
     [ -x "$CHULENGO_BIN" ] || fail "Binary not found at $CHULENGO_BIN."
+    VERSION_OUT=$("$CHULENGO_BIN" --version)
+    [ "$VERSION_OUT" = "chulengo 1.0.0" ] || fail "Direct binary runtime resolution failed."
     if [ "$(uname -s)" = "Linux" ]; then
         export LD_LIBRARY_PATH="$APP_ROOT/lib/obj/llama.cpp/$ARCH:$APP_ROOT/lib/obj/ggml/$ARCH${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
         if ldd "$CHULENGO_BIN" | grep -q 'not found'; then
@@ -66,7 +68,14 @@ test_general() {
     printf '%s\n' "$HELP_OUT" | grep -q -- '--type' || fail "Help output missing --type."
     printf '%s\n' "$HELP_OUT" | grep -q -- '--predict' || fail "Help output missing infer flags."
     printf '%s\n' "$HELP_OUT" | grep -q -- '--kv' || fail "Help output missing --kv."
+    printf '%s\n' "$HELP_OUT" | grep -q -- '--version, -v' || fail "Help output missing --version."
     pass "General: Help output verified."
+
+    VERSION_OUT=$("$CHULENGO_BIN" --version)
+    [ "$VERSION_OUT" = "chulengo 1.0.0" ] || fail "Version output failed."
+    VERSION_OUT=$("$CHULENGO_BIN" infer --version)
+    [ "$VERSION_OUT" = "chulengo 1.0.0" ] || fail "Command-level version output failed."
+    pass "General: Version output verified."
 
     if "$CHULENGO_BIN" >/dev/null 2>&1; then fail "Missing command should fail."; fi
     if "$CHULENGO_BIN" unknown >/dev/null 2>&1; then fail "Unknown command should fail."; fi

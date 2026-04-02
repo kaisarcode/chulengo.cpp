@@ -40,6 +40,7 @@
 #define CHULENGO_DEFAULT_PENALTY 1.10f
 #define CHULENGO_DEFAULT_SEED -1
 #define CHULENGO_MAX_LORA 32
+#define CHULENGO_VERSION "1.0.0"
 
 typedef enum {
     CHULENGO_COMMAND_NONE = 0,
@@ -133,6 +134,7 @@ static void chulengo_help(void) {
     printf("  --model <path>       Path to the GGUF model\n");
     printf("  --type <type>        Input type: text or image (default: text)\n");
     printf("  --mmproj <path>      Path to the multimodal projector when required\n");
+    printf("  --version, -v        Show version\n");
     printf("  --help               Show help\n\n");
     printf("Infer options:\n");
     printf("  --kv <path>          Load one KV snapshot if present and save it back after inference\n");
@@ -148,6 +150,14 @@ static void chulengo_help(void) {
     printf("  --seed <int>         RNG seed (default: -1)\n");
     printf("  --lora <path>        LoRA adapter path\n");
     printf("  --lora-scale <f>     Scale for the previous LoRA adapter\n");
+}
+
+/**
+ * Prints the binary version.
+ * @return void
+ */
+static void chulengo_version(void) {
+    printf("chulengo %s\n", CHULENGO_VERSION);
 }
 
 /**
@@ -312,6 +322,10 @@ static int chulengo_parse_args(int argc, char **argv, chulengo_config *config) {
     if (argc < 2) {
         return chulengo_fail_usage("Missing command. Use 'embed' or 'infer'.");
     }
+    if (strcmp(argv[1], "--version") == 0 || strcmp(argv[1], "-v") == 0) {
+        chulengo_version();
+        return 2;
+    }
     if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) {
         chulengo_help();
         return 2;
@@ -330,6 +344,10 @@ static int chulengo_parse_args(int argc, char **argv, chulengo_config *config) {
     for (i = 2; i < argc; i++) {
         if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             chulengo_help();
+            return 2;
+        }
+        if (strcmp(argv[i], "--version") == 0 || strcmp(argv[i], "-v") == 0) {
+            chulengo_version();
             return 2;
         }
         if (strcmp(argv[i], "--model") == 0) {
