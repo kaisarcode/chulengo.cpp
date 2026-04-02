@@ -19,7 +19,7 @@
 
 #define KC_INSTALLER_TITLE "chulengo installer"
 #define KC_INSTALL_ROOT_DEFAULT "C:\\Program Files\\KaisarCode"
-#define KC_REPO_ROOT "https://media.githubusercontent.com/media/kaisarcode/chulengo.cpp/master"
+#define KC_REPO_ROOT "https://raw.githubusercontent.com/kaisarcode/chulengo.cpp/v1.0.0"
 #define KC_MAX_FILES 16
 
 struct kc_file_entry {

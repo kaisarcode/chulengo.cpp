@@ -10,7 +10,8 @@ set -e
 
 APP_ID="chulengo"
 REPO_ID="chulengo.cpp"
-CORE_REPO_ROOT="https://raw.githubusercontent.com/kaisarcode/${REPO_ID}/master"
+RELEASE_TAG="v1.0.0"
+CORE_REPO_ROOT="https://raw.githubusercontent.com/kaisarcode/${REPO_ID}/${RELEASE_TAG}"
 INSTALLER_URL="${CORE_REPO_ROOT}/install.sh"
 SYS_BIN_DIR="/usr/local/bin"
 SYS_APP_DIR="/usr/local/lib/kaisarcode/apps"
