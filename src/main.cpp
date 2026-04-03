@@ -726,7 +726,6 @@ static int chulengo_load_kv_state(struct llama_context *ctx, const char *path, i
     memory = llama_get_memory(ctx);
     pos_max = llama_memory_seq_pos_max(memory, 0);
     *n_past = pos_max >= 0 ? (int)pos_max + 1 : 0;
-    llama_memory_seq_rm(memory, 0, *n_past, -1);
     return 0;
 }
 
