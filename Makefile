@@ -40,7 +40,7 @@ CXX_arm64_v8a = $(NDK_BIN)/aarch64-linux-android$(NDK_API)-clang++
 CXX_win64 = x86_64-w64-mingw32-g++
 
 CXXFLAGS = -Wall -Wextra -Werror -O3 -std=c++17 -I$(INC_DIR) -I$(GGML_INC) $(EXTRA_CXXFLAGS)
-LDFLAGS_RUNTIME = $(EXTRA_LDFLAGS)
+LDFLAGS_RUNTIME = -Wl,--no-as-needed $(EXTRA_LDFLAGS)
 SYSLIBS_UNIX = -pthread
 SYSLIBS_WIN = -lws2_32 -ladvapi32 -Wl,--no-insert-timestamp
 WINSOCK = -lws2_32 -ladvapi32 -Wl,--no-insert-timestamp
@@ -94,7 +94,7 @@ build_arch:
 	$(eval OBJS = $(BIN_ROOT)/$(ARCH)/main.o)
 	$(eval RPATH_FLAGS = $(if $(findstring win64,$(ARCH)),,$(LOCAL_RPATH) $(INSTALL_RPATH)))
 	$(MAKE) $(OBJS) ARCH=$(ARCH) CXX="$(CXX)" EXT="$(EXT)" EXTRA_CXXFLAGS="$(EXTRA_CXXFLAGS) $(MTMD_CXXFLAGS)"
-	$(CXX) $(CXXFLAGS) $(OBJS) -o $(BIN_ROOT)/$(ARCH)/$(NAME)$(EXT) $(if $(findstring win64,$(ARCH)),$(WIN_DEPS) $(SYSLIBS_WIN),$(SHARED_DEPS) $(SYSLIBS_UNIX)) $(RPATH_FLAGS) $(LDFLAGS_RUNTIME)
+	$(CXX) $(CXXFLAGS) $(OBJS) -o $(BIN_ROOT)/$(ARCH)/$(NAME)$(EXT) $(LDFLAGS_RUNTIME) $(if $(findstring win64,$(ARCH)),$(WIN_DEPS) $(SYSLIBS_WIN),$(SHARED_DEPS) $(SYSLIBS_UNIX)) $(RPATH_FLAGS)
 
 $(BIN_ROOT)/$(ARCH)/%.o: src/%.cpp
 	mkdir -p $(BIN_ROOT)/$(ARCH)
