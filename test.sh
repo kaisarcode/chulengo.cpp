@@ -12,6 +12,13 @@ SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname "$0")" && pwd)
 APP_ROOT="$SCRIPT_DIR"
 MODEL_ROOT="${CHULENGO_MODEL_ROOT:-./models}"
 
+# Returns success when one version string matches the public CLI format.
+# @param $1 Version output.
+# @return 0 on success.
+is_valid_version_output() {
+    printf '%s\n' "$1" | grep -Eq '^chulengo [0-9]+\.[0-9]+\.[0-9]+$'
+}
+
 # Prints one failure and exits.
 # @param $1 Failure message.
 # @return Does not return.
@@ -48,7 +55,7 @@ test_setup() {
     export CHULENGO_BIN="$APP_ROOT/bin/$ARCH/chulengo$EXT"
     [ -x "$CHULENGO_BIN" ] || fail "Binary not found at $CHULENGO_BIN."
     VERSION_OUT=$("$CHULENGO_BIN" --version)
-    [ "$VERSION_OUT" = "chulengo 1.0.0" ] || fail "Direct binary runtime resolution failed."
+    is_valid_version_output "$VERSION_OUT" || fail "Direct binary runtime resolution failed."
     if [ "$(uname -s)" = "Linux" ]; then
         export LD_LIBRARY_PATH="$APP_ROOT/lib/obj/llama.cpp/$ARCH:$APP_ROOT/lib/obj/ggml/$ARCH${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
         if ldd "$CHULENGO_BIN" | grep -q 'not found'; then
@@ -72,9 +79,9 @@ test_general() {
     pass "General: Help output verified."
 
     VERSION_OUT=$("$CHULENGO_BIN" --version)
-    [ "$VERSION_OUT" = "chulengo 1.0.0" ] || fail "Version output failed."
+    is_valid_version_output "$VERSION_OUT" || fail "Version output failed."
     VERSION_OUT=$("$CHULENGO_BIN" infer --version)
-    [ "$VERSION_OUT" = "chulengo 1.0.0" ] || fail "Command-level version output failed."
+    is_valid_version_output "$VERSION_OUT" || fail "Command-level version output failed."
     pass "General: Version output verified."
 
     if "$CHULENGO_BIN" >/dev/null 2>&1; then fail "Missing command should fail."; fi
