@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [KaisarCode Standards](https://kaisarcode.com).
 
+## [1.0.2] - 2026-04-06
+
+### Fixed
+- Fixed the Linux installer and uninstaller release tags to download the correct release payload.
+- Fixed Linux runtime installation to preserve the full vendored `llama.cpp` and `ggml` library layout.
+- Fixed README installation commands to point to the current release tag.
+
 ## [1.0.1] - 2026-04-03
 
 ### Added
