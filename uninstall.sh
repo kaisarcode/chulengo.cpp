@@ -10,7 +10,7 @@ set -e
 
 APP_ID="chulengo"
 REPO_ID="chulengo.cpp"
-RELEASE_TAG="v1.0.0"
+RELEASE_TAG="v1.0.1"
 CORE_REPO_ROOT="https://raw.githubusercontent.com/kaisarcode/${REPO_ID}/${RELEASE_TAG}"
 UNINSTALLER_URL="${CORE_REPO_ROOT}/uninstall.sh"
 SYS_BIN_DIR="/usr/local/bin"

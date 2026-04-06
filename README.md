@@ -145,19 +145,19 @@ The final executables link against the vendored `llama.cpp`, `mtmd`, and
 Install the current-architecture production binary on Linux:
 
 ```bash
-wget -qO- https://raw.githubusercontent.com/kaisarcode/chulengo.cpp/v1.0.0/install.sh | bash
+wget -qO- https://raw.githubusercontent.com/kaisarcode/chulengo.cpp/v1.0.1/install.sh | bash
 ```
 
 Remove the installed application on Linux:
 
 ```bash
-wget -qO- https://raw.githubusercontent.com/kaisarcode/chulengo.cpp/v1.0.0/uninstall.sh | bash
+wget -qO- https://raw.githubusercontent.com/kaisarcode/chulengo.cpp/v1.0.1/uninstall.sh | bash
 ```
 
 Remove the installed application plus shared runtime dependencies on Linux:
 
 ```bash
-wget -qO- https://raw.githubusercontent.com/kaisarcode/chulengo.cpp/v1.0.0/uninstall.sh | bash -s -- --deps
+wget -qO- https://raw.githubusercontent.com/kaisarcode/chulengo.cpp/v1.0.1/uninstall.sh | bash -s -- --deps
 ```
 
 Model files are not installed by `install.sh`. You must provide compatible
