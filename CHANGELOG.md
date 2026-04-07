@@ -12,6 +12,9 @@ and this project adheres to [KaisarCode Standards](https://kaisarcode.com).
 - Implemented Git LFS tracking for all shared libraries, static libraries, and binaries.
 - Removed legacy architecture root targets (`arm64-v8a` and `win64`).
 
+### Removed
+- Removed unused, unlinked vendor dependencies inadvertently included in the repository (`stable-diffusion.cpp`, `imagemagick`, `libpng`, `parson`, `pcre2`, `zlib`).
+
 ## [1.0.1] - 2026-04-03
 
 ### Added
