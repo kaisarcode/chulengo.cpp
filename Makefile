@@ -9,6 +9,7 @@ NAME = chulengo
 INSTALLER_SRC = src/win/install.cpp
 UNINSTALLER_SRC = src/win/uninstall.cpp
 BIN_ROOT = bin
+OBJ_ROOT = obj
 DEPS_ROOT = lib
 TOOLCHAIN_ROOT = /usr/local/share/kaisarcode/toolchains
 SRC = src/main.cpp src/pal.h
@@ -36,6 +37,8 @@ SYSLIBS_UNIX = -pthread
 SYSLIBS_WIN = -lws2_32 -ladvapi32 -Wl,--no-insert-timestamp
 WININSTALL = -lurlmon -lshell32 -ladvapi32 -lshlwapi -lcomctl32 \
     -Wl,--no-insert-timestamp
+LOCAL_RPATH = -Wl,-rpath,'$$$$ORIGIN/../../lib/llama.cpp/$(ARCH)/$(PLATFORM):$$$$ORIGIN/../../lib/ggml/$(ARCH)/$(PLATFORM)'
+INSTALL_RPATH = -Wl,-rpath,/usr/local/lib/kaisarcode/obj/llama.cpp/$(ARCH):/usr/local/lib/kaisarcode/obj/ggml/$(ARCH)
 
 .PHONY: all clean build_arch x86_64/linux aarch64/linux aarch64/android x86_64/windows
 
@@ -68,6 +71,7 @@ uninstall.exe: $(UNINSTALLER_SRC)
 
 build_arch:
 	mkdir -p $(BIN_ROOT)/$(ARCH)/$(PLATFORM)
+	mkdir -p $(OBJ_ROOT)/$(ARCH)/$(PLATFORM)
 	$(eval LLAMA_LIB = $(DEPS_ROOT)/llama.cpp/$(ARCH)/$(PLATFORM))
 	$(eval GGML_LIB = $(DEPS_ROOT)/ggml/$(ARCH)/$(PLATFORM))
 	$(eval SHARED_DEPS = $(GGML_LIB)/libggml.so $(GGML_LIB)/libggml-cpu.so \
@@ -78,12 +82,17 @@ build_arch:
 	@for dep in $(DEPS); do \
 		test -f "$$dep" || { echo "[ERROR] Missing $$dep"; exit 1; }; \
 	done
-	$(eval LOCAL_RPATH = -Wl,-rpath,'$$$$ORIGIN/../../$(LLAMA_LIB):$$$$ORIGIN/../../$(GGML_LIB)')
-	$(eval INSTALL_RPATH = -Wl,-rpath,/usr/local/lib/kaisarcode/llama.cpp/$(ARCH)/$(PLATFORM):/usr/local/lib/kaisarcode/ggml/$(ARCH)/$(PLATFORM))
 	$(eval RPATH_FLAGS = $(if $(filter windows,$(PLATFORM)),,$(LOCAL_RPATH) $(INSTALL_RPATH)))
-	$(CXX) $(CXXFLAGS) src/main.cpp -o $(BIN_ROOT)/$(ARCH)/$(PLATFORM)/$(NAME)$(EXT) \
+	$(eval OBJS = $(OBJ_ROOT)/$(ARCH)/$(PLATFORM)/main.o)
+	$(MAKE) $(OBJS) ARCH=$(ARCH) PLATFORM=$(PLATFORM) CXX="$(CXX)" EXT="$(EXT)" EXTRA_CXXFLAGS="$(EXTRA_CXXFLAGS)"
+	$(CXX) $(CXXFLAGS) $(OBJS) -o $(BIN_ROOT)/$(ARCH)/$(PLATFORM)/$(NAME)$(EXT) \
 	$(LDFLAGS_RUNTIME) $(DEPS) \
 	$(if $(filter windows,$(PLATFORM)),$(SYSLIBS_WIN),$(SYSLIBS_UNIX)) $(RPATH_FLAGS)
 
+$(OBJ_ROOT)/$(ARCH)/$(PLATFORM)/%.o: src/%.cpp
+	mkdir -p $(OBJ_ROOT)/$(ARCH)/$(PLATFORM)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
 clean:
-	rm -rf $(BIN_ROOT) install.exe uninstall.exe
+	rm -rf $(OBJ_ROOT) install.exe uninstall.exe
+	find $(BIN_ROOT) -mindepth 1 -delete 2>/dev/null || true
