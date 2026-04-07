@@ -44,24 +44,31 @@ count_eot() {
 # Resolves the current build artifact.
 # @return 0 on success.
 test_setup() {
-    ARCH=$(uname -m)
-    [ "$ARCH" = "x86_64" ] || [ "$ARCH" = "aarch64" ] || ARCH="arm64-v8a"
-    case "$ARCH" in
-        x86_64) EXT="" ;;
-        aarch64) EXT="" ;;
-        arm64-v8a) EXT="" ;;
-        *) EXT="" ;;
+    local arch
+    local platform
+    local ext=""
+
+    arch=$(uname -m)
+    case "$arch" in
+        x86_64) arch="x86_64" ;;
+        aarch64|arm64) arch="aarch64" ;;
+        *) fail "Unsupported architecture for tests: $arch" ;;
     esac
-    export CHULENGO_BIN="$APP_ROOT/bin/$ARCH/chulengo$EXT"
+    platform="linux"
+
+    export CHULENGO_BIN="$APP_ROOT/bin/$arch/$platform/chulengo$ext"
     [ -x "$CHULENGO_BIN" ] || fail "Binary not found at $CHULENGO_BIN."
+    
+    if [ "$(uname -s)" = "Linux" ]; then
+        export LD_LIBRARY_PATH="$APP_ROOT/lib/llama.cpp/$arch/$platform:$APP_ROOT/lib/ggml/$arch/$platform${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    fi
+
     VERSION_OUT=$("$CHULENGO_BIN" --version)
     is_valid_version_output "$VERSION_OUT" || fail "Direct binary runtime resolution failed."
-    if [ "$(uname -s)" = "Linux" ]; then
-        export LD_LIBRARY_PATH="$APP_ROOT/lib/obj/llama.cpp/$ARCH:$APP_ROOT/lib/obj/ggml/$ARCH${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-        if ldd "$CHULENGO_BIN" | grep -q 'not found'; then
-            ldd "$CHULENGO_BIN"
-            fail "Shared runtime dependencies are missing."
-        fi
+
+    if [ "$(uname -s)" = "Linux" ] && ldd "$CHULENGO_BIN" | grep -q 'not found'; then
+        ldd "$CHULENGO_BIN"
+        fail "Shared runtime dependencies are missing."
     fi
     pass "Environment verified: using $CHULENGO_BIN"
 }
@@ -191,6 +198,7 @@ test_real_embed_image() {
 }
 
 # Runs the full test suite.
+# @param $@ Script arguments.
 # @return 0 on success.
 run_tests() {
     test_setup
@@ -203,4 +211,4 @@ run_tests() {
     pass "All tests passed successfully for chulengo."
 }
 
-run_tests
+run_tests "$@"
